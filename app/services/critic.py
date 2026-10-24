@@ -209,6 +209,7 @@ async def compare_papers(papers: list[dict]) -> dict:
     )
     incomplete = (
         insufficient > 0
+        or not_direct > 0
         or len(valid_papers) != len(papers)
         or any(
             "baseline information is missing" in warning.casefold()
