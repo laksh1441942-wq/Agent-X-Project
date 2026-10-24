@@ -87,10 +87,10 @@ Adapt to the existing repo; do not restructure without agreement.
 After each meaningful commit, update the root or module README with what changed, files touched, how to run/test, actual result (`pass`, `fail`, or `not run`), known limitations, and next step. Never fabricate a development history or test results.
 
 ## Four-day plan
-**Oct 24:** skeleton, shared schemas, health endpoint, agree interfaces, first branch merged.  
-**Oct 25:** search/authenticity + critic + reasoning modules return structured outputs.  
-**Oct 26:** connect complete API and frontend; test missing fields and API failures.  
-**Oct 27:** freeze interfaces, fix bugs, rehearse demo.  
+**Oct 24:** skeleton, shared schemas, health endpoint, agree interfaces, first branch merged.
+**Oct 25:** search/authenticity + critic + reasoning modules return structured outputs.
+**Oct 26:** connect complete API and frontend; test missing fields and API failures.
+**Oct 27:** freeze interfaces, fix bugs, rehearse demo.
 **Oct 28:** demo only; avoid major refactors.
 
 ## Integrity boundaries

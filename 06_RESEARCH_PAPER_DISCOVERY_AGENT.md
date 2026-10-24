@@ -1,8 +1,8 @@
 # ResearchPilot AI — Research Paper Discovery Agent
 
-**Role:** Find relevant academic papers from trusted scholarly sources and rank them by relevance.  
-**Suggested branch:** `feat/paper-discovery`  
-**Own:** `app/services/paper_discovery.py`, related tests, and optionally `docs/paper_discovery.md`.  
+**Role:** Find relevant academic papers from trusted scholarly sources and rank them by relevance.
+**Suggested branch:** `feat/paper-discovery`
+**Own:** `app/services/paper_discovery.py`, related tests, and optionally `docs/paper_discovery.md`.
 **Do not edit:** `app/main.py`, `app/schemas.py`, `app/orchestrator.py`, or frontend files unless the team lead asks.
 
 ## 1. Mission

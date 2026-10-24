@@ -44,7 +44,7 @@ async def analyze_missing_information(
             field_value = paper.get(field)
 
             if field_value and isinstance(field_value, list) and len(field_value) > 0:
-                continue 
+                continue
 
             status = "missing_from_extracted_data"
             reason = f"The field '{field}' contains an empty array payload in the input object data."
