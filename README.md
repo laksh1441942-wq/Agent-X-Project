@@ -7,8 +7,13 @@ prove scientific truth, and candidate gaps do not prove novelty.
 
 ## Current implementation
 
-The first implemented slice is the isolated Paper Discovery Agent in
-`app/services/paper_discovery.py`. It:
+The implemented service slices are:
+
+- Paper Discovery Agent in `app/services/paper_discovery.py`;
+- Critic Agent in `app/services/critic.py`; and
+- Reasoning Agent in `app/services/reasoning.py`.
+
+The Paper Discovery Agent:
 
 - searches OpenAlex with a timeout;
 - normalizes source metadata into the shared paper-record shape;
@@ -17,6 +22,12 @@ The first implemented slice is the isolated Paper Discovery Agent in
 - ranks candidates by unique non-stopword overlap with title/abstract, then
   OpenAlex relevance score; and
 - returns structured warnings/errors without inventing missing metadata.
+
+The Critic Agent compares reported datasets, metrics, protocols, baselines, and
+results pairwise. It explicitly marks missing information and incomparable
+experiments rather than ranking scores across incompatible studies. The
+Reasoning Agent flags absent structured fields and treats candidate gaps as
+limits of the retrieved literature, not proof of novelty.
 
 The module is importable without starting a server. No new runtime dependency
 was added; HTTP requests use Python's standard library.
@@ -27,16 +38,17 @@ Use Python 3.11 or 3.12 as specified by the team blueprint:
 
 ```bash
 python3 -m compileall -q app tests
-python3 -m pytest -q tests/test_paper_discovery.py
+python3 -m pytest -q tests/test_paper_discovery.py tests/test_reasoning.py
 ```
 
-Actual result: **pass** - 5 tests passed locally.
+Actual result: **pass** - 7 tests passed locally. Critic validation also passed
+with a direct smoke test for incomparable datasets.
 
 ## Limitations and next step
 
 Discovery currently searches only OpenAlex and does not establish
 authenticity, scientific validity, or comprehensive literature coverage.
 Network failures return a structured error and no fallback fixture has been
-connected yet. The next step is for the team lead to connect this function to
-the shared schemas and orchestrator, followed by the authenticity, critic, and
-reasoning stages.
+connected yet. Critic and reasoning outputs still need to be wired into the
+shared schemas and orchestrator. The next step is the team lead integration,
+followed by API and end-to-end tests.

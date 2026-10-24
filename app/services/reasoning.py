@@ -1,8 +1,12 @@
-import os
-import json
-from typing import List, Dict, Any, Optional
+from typing import Any
 
-def create_agent_output(status: str, summary: str, items: List[Dict[str, Any]] = None, warnings: List[str] = None) -> Dict[str, Any]:
+
+def create_agent_output(
+    status: str,
+    summary: str,
+    items: list[dict[str, Any]] | None = None,
+    warnings: list[str] | None = None,
+) -> dict[str, Any]:
     return {
         "agent_name": "Reasoning Agent",
         "status": status,
@@ -13,10 +17,10 @@ def create_agent_output(status: str, summary: str, items: List[Dict[str, Any]] =
     }
 
 async def analyze_missing_information(
-    papers: List[Dict[str, Any]],
-    comparison: Optional[Dict[str, Any]] = None,
+    papers: list[dict[str, Any]],
+    comparison: dict[str, Any] | None = None,
     research_question: str = ""
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     if not papers:
         return create_agent_output(
             status="success",
