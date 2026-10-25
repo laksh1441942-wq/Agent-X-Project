@@ -89,12 +89,13 @@ async def compare_papers(papers: list[dict]) -> dict:
                 sources.append(url)
 
     fields = {
+        "objective": ("research_objective", "objective"),
         "dataset": ("datasets", "dataset"),
         "metric": ("metrics", "metric"),
         "result": ("reported_results", "results", "result"),
         "protocol": ("experimental_protocols", "experimental_protocol", "protocol"),
         "baseline": ("baselines", "baseline"),
-        "method": ("methods", "method"),
+        "method": ("methods", "method", "architectures", "architecture"),
         "limitation": ("limitations", "limitation"),
     }
 
@@ -183,14 +184,36 @@ async def compare_papers(papers: list[dict]) -> dict:
                     )
 
             details = []
-            for name in ("method", "result", "limitation"):
+            for name, label in (
+                ("objective", "research objectives"),
+                ("method", "methods/architecture"),
+                ("limitation", "limitations"),
+            ):
                 left_values = left_data[name]
                 right_values = right_data[name]
-                if left_values or right_values:
-                    details.append(
-                        f"Reported {name}s: {_display(left_values) or 'not reported'} vs "
-                        f"{_display(right_values) or 'not reported'}"
+                left_reported = _display(left_values) or "not reported"
+                right_reported = _display(right_values) or "not reported"
+                if left_values and right_values:
+                    relation = (
+                        "match"
+                        if _normalized(left_values) == _normalized(right_values)
+                        else "differ"
                     )
+                    details.append(
+                        f"Inference: reported {label} {relation}: paper 1 reported "
+                        f"{left_reported} vs paper 2 reported {right_reported}"
+                    )
+                else:
+                    details.append(
+                        f"Inference: comparison of reported {label} is incomplete: "
+                        f"paper 1 reported {left_reported} vs "
+                        f"paper 2 reported {right_reported}"
+                    )
+            if left_data["result"] or right_data["result"]:
+                details.append(
+                    f"Reported results: {_display(left_data['result']) or 'not reported'} vs "
+                    f"{_display(right_data['result']) or 'not reported'}"
+                )
             result_conflict = (
                 bool(left_data["result"])
                 and bool(right_data["result"])

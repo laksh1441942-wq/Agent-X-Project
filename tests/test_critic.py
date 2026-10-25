@@ -283,3 +283,141 @@ async def test_multiple_mismatches_are_all_reported_for_a_pair():
     assert "Reported experimental protocols differ" in item["reason"]
     assert "Reported baselines differ" in item["reason"]
     assert result["warnings"] == [f"paper-1 and paper-2: {item['reason']}"]
+
+
+def _papers_with_matching_required_evidence(left_fields, right_fields):
+    required_evidence = {
+        "datasets": ["Dataset A"],
+        "metrics": ["Accuracy"],
+        "reported_results": ["0.91"],
+        "experimental_protocols": ["5-fold cross-validation"],
+        "baselines": ["Baseline X"],
+    }
+    left = {**required_evidence, **left_fields, "paper_id": "paper-1"}
+    right = {**required_evidence, **right_fields, "paper_id": "paper-2"}
+    return [_paper(**left), _paper(**right)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("left_fields", "right_fields", "label", "left_value", "right_value"),
+    [
+        (
+            {"research_objective": ["Classify images"]},
+            {"objective": ["Classify images"]},
+            "research objectives",
+            "Classify images",
+            "Classify images",
+        ),
+        (
+            {"methods": ["Transformer"]},
+            {"architecture": ["Transformer"]},
+            "methods/architecture",
+            "Transformer",
+            "Transformer",
+        ),
+        (
+            {"limitations": ["Small sample size"]},
+            {"limitations": ["Small sample size"]},
+            "limitations",
+            "Small sample size",
+            "Small sample size",
+        ),
+    ],
+)
+async def test_matching_reported_objectives_methods_and_limitations(
+    left_fields, right_fields, label, left_value, right_value
+):
+    result = await compare_papers(
+        _papers_with_matching_required_evidence(left_fields, right_fields)
+    )
+    item = result["items"][0]
+
+    assert item["comparability"] == "potentially_comparable"
+    assert f"Inference: reported {label} match:" in item["finding"]
+    assert left_value in item["finding"]
+    assert right_value in item["finding"]
+    assert "paper-1" in item["evidence"]
+    assert "paper-2" in item["evidence"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("left_fields", "right_fields", "label", "left_value", "right_value"),
+    [
+        (
+            {"research_objective": ["Classify images"]},
+            {"objective": ["Detect objects"]},
+            "research objectives",
+            "Classify images",
+            "Detect objects",
+        ),
+        (
+            {"methods": ["Transformer"]},
+            {"architecture": ["Convolutional network"]},
+            "methods/architecture",
+            "Transformer",
+            "Convolutional network",
+        ),
+        (
+            {"limitations": ["Small sample size"]},
+            {"limitations": ["Limited compute"]},
+            "limitations",
+            "Small sample size",
+            "Limited compute",
+        ),
+    ],
+)
+async def test_differing_reported_objectives_methods_and_limitations(
+    left_fields, right_fields, label, left_value, right_value
+):
+    result = await compare_papers(
+        _papers_with_matching_required_evidence(left_fields, right_fields)
+    )
+    item = result["items"][0]
+
+    assert item["comparability"] == "potentially_comparable"
+    assert f"Inference: reported {label} differ:" in item["finding"]
+    assert left_value in item["finding"]
+    assert right_value in item["finding"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("left_fields", "right_fields", "label", "reported_value", "missing_value"),
+    [
+        (
+            {},
+            {"research_objective": ["Classify images"]},
+            "research objectives",
+            "Classify images",
+            "paper 1 reported not reported",
+        ),
+        (
+            {"methods": ["Transformer"]},
+            {},
+            "methods/architecture",
+            "Transformer",
+            "paper 2 reported not reported",
+        ),
+        (
+            {},
+            {"limitations": ["Small sample size"]},
+            "limitations",
+            "Small sample size",
+            "paper 1 reported not reported",
+        ),
+    ],
+)
+async def test_missing_reported_objectives_methods_and_limitations_are_not_inferred(
+    left_fields, right_fields, label, reported_value, missing_value
+):
+    result = await compare_papers(
+        _papers_with_matching_required_evidence(left_fields, right_fields)
+    )
+    item = result["items"][0]
+
+    assert item["comparability"] == "potentially_comparable"
+    assert f"Inference: comparison of reported {label} is incomplete:" in item["finding"]
+    assert reported_value in item["finding"]
+    assert missing_value in item["finding"]
