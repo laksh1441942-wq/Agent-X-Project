@@ -421,3 +421,78 @@ async def test_missing_reported_objectives_methods_and_limitations_are_not_infer
     assert f"Inference: comparison of reported {label} is incomplete:" in item["finding"]
     assert reported_value in item["finding"]
     assert missing_value in item["finding"]
+
+
+@pytest.mark.asyncio
+async def test_mixed_valid_and_invalid_field_values_warn_once_and_preserve_evidence():
+    papers = [
+        _paper(
+            paper_id="paper-1",
+            datasets=["Dataset A", True, True],
+            url="https://example.test/paper-1",
+        ),
+        _paper(
+            paper_id="paper-2",
+            url="https://example.test/paper-2",
+        ),
+    ]
+
+    result = await compare_papers(papers)
+    item = result["items"][0]
+
+    assert result["status"] == "success"
+    assert item["comparability"] == "potentially_comparable"
+    assert item["paper_ids"] == ["paper-1", "paper-2"]
+    assert item["evidence"] == [
+        "paper-1",
+        "paper-2",
+        "https://example.test/paper-1",
+        "https://example.test/paper-2",
+    ]
+    assert result["sources"] == [
+        "https://example.test/paper-1",
+        "https://example.test/paper-2",
+    ]
+    assert result["warnings"] == [
+        "Paper at input index 0 field 'datasets' contains a nonempty invalid "
+        "value of type bool; value was ignored."
+    ]
+
+
+@pytest.mark.asyncio
+async def test_only_invalid_field_values_warn_and_remain_missing_evidence():
+    papers = [
+        _paper(
+            paper_id="paper-1",
+            metrics=[True, {"invalid": "metric"}],
+            url="https://example.test/paper-1",
+        ),
+        _paper(
+            paper_id="paper-2",
+            url="https://example.test/paper-2",
+        ),
+    ]
+
+    result = await compare_papers(papers)
+    item = result["items"][0]
+
+    assert result["status"] == "partial"
+    assert item["comparability"] == "insufficient_information"
+    assert "Missing reported metric" in item["reason"]
+    assert item["paper_ids"] == ["paper-1", "paper-2"]
+    assert item["evidence"] == [
+        "paper-1",
+        "paper-2",
+        "https://example.test/paper-1",
+        "https://example.test/paper-2",
+    ]
+    assert result["sources"] == [
+        "https://example.test/paper-1",
+        "https://example.test/paper-2",
+    ]
+    assert result["warnings"][:2] == [
+        "Paper at input index 0 field 'metrics' contains a nonempty invalid "
+        "value of type bool; value was ignored.",
+        "Paper at input index 0 field 'metrics' contains a nonempty invalid "
+        "value of type dict; value was ignored.",
+    ]

@@ -1,4 +1,9 @@
-def _values(paper: dict, *keys: str) -> list[str]:
+def _values(
+    paper: dict,
+    *keys: str,
+    warnings: list[str],
+    paper_index: int,
+) -> list[str]:
     for key in keys:
         value = paper.get(key)
         if value is None:
@@ -7,13 +12,28 @@ def _values(paper: dict, *keys: str) -> list[str]:
             candidates = sorted(value, key=str) if isinstance(value, set) else value
         else:
             candidates = [value]
-        values = [
-            str(item).strip()
-            for item in candidates
-            if isinstance(item, (str, int, float))
-            and not isinstance(item, bool)
-            and str(item).strip()
-        ]
+        values = []
+        for item in candidates:
+            if item is None:
+                continue
+            if isinstance(item, str):
+                if item.strip():
+                    values.append(item.strip())
+                continue
+            if isinstance(item, (int, float)) and not isinstance(item, bool):
+                values.append(str(item).strip())
+                continue
+            if isinstance(item, (list, tuple, set, frozenset, dict, bytes, bytearray)):
+                if not item:
+                    continue
+
+            warning = (
+                f"Paper at input index {paper_index} field '{key}' contains "
+                f"a nonempty invalid value of type {type(item).__name__}; "
+                "value was ignored."
+            )
+            if warning not in warnings:
+                warnings.append(warning)
         if values:
             return values
     return []
@@ -61,9 +81,11 @@ async def compare_papers(papers: list[dict]) -> dict:
 
     valid_papers = []
     warnings = []
+    paper_indices = {}
     for index, paper in enumerate(papers):
         if isinstance(paper, dict):
             valid_papers.append(paper)
+            paper_indices[id(paper)] = index
         else:
             warnings.append(
                 f"Skipped malformed paper record at index {index}; expected a dictionary."
@@ -116,8 +138,18 @@ async def compare_papers(papers: list[dict]) -> dict:
                     if url not in evidence:
                         evidence.append(url)
 
-            left_data = {name: _values(left, *keys) for name, keys in fields.items()}
-            right_data = {name: _values(right, *keys) for name, keys in fields.items()}
+            left_data = {
+                name: _values(
+                    left, *keys, warnings=warnings, paper_index=paper_indices[id(left)]
+                )
+                for name, keys in fields.items()
+            }
+            right_data = {
+                name: _values(
+                    right, *keys, warnings=warnings, paper_index=paper_indices[id(right)]
+                )
+                for name, keys in fields.items()
+            }
             missing = [
                 name
                 for name in ("dataset", "metric", "result", "protocol")
