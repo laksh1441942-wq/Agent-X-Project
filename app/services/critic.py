@@ -126,35 +126,47 @@ async def compare_papers(papers: list[dict]) -> dict:
                 not left_data["baseline"] or not right_data["baseline"]
             )
 
-            if missing:
-                comparability = "insufficient_information"
-                reason = "Missing reported " + ", ".join(missing) + " for one or both papers."
-                inference = False
-            elif _normalized(left_data["dataset"]) != _normalized(right_data["dataset"]):
-                comparability = "not_directly_comparable"
-                reason = (
+            mismatches = []
+            if (
+                left_data["dataset"]
+                and right_data["dataset"]
+                and _normalized(left_data["dataset"]) != _normalized(right_data["dataset"])
+            ):
+                mismatches.append(
                     f"Reported datasets differ: {_display(left_data['dataset'])} vs "
                     f"{_display(right_data['dataset'])}."
                 )
-                inference = False
-            elif _normalized(left_data["metric"]) != _normalized(right_data["metric"]):
-                comparability = "not_directly_comparable"
-                reason = (
+            if (
+                left_data["metric"]
+                and right_data["metric"]
+                and _normalized(left_data["metric"]) != _normalized(right_data["metric"])
+            ):
+                mismatches.append(
                     f"Reported metrics differ: {_display(left_data['metric'])} vs "
                     f"{_display(right_data['metric'])}; scores are not ranked across metrics."
                 )
-                inference = False
-            elif _normalized(left_data["protocol"]) != _normalized(right_data["protocol"]):
-                comparability = "not_directly_comparable"
-                reason = "Reported experimental protocols differ."
-                inference = False
-            elif (
+            if (
+                left_data["protocol"]
+                and right_data["protocol"]
+                and _normalized(left_data["protocol"]) != _normalized(right_data["protocol"])
+            ):
+                mismatches.append("Reported experimental protocols differ.")
+            if (
                 left_data["baseline"]
                 and right_data["baseline"]
                 and _normalized(left_data["baseline"]) != _normalized(right_data["baseline"])
             ):
+                mismatches.append("Reported baselines differ.")
+
+            if missing:
+                comparability = "insufficient_information"
+                reason = "Missing reported " + ", ".join(missing) + " for one or both papers."
+                if mismatches:
+                    reason += " " + " ".join(mismatches)
+                inference = False
+            elif mismatches:
                 comparability = "not_directly_comparable"
-                reason = "Reported baselines differ."
+                reason = " ".join(mismatches)
                 inference = False
             else:
                 comparability = "potentially_comparable"
@@ -179,9 +191,21 @@ async def compare_papers(papers: list[dict]) -> dict:
                         f"Reported {name}s: {_display(left_values) or 'not reported'} vs "
                         f"{_display(right_values) or 'not reported'}"
                     )
+            result_conflict = (
+                bool(left_data["result"])
+                and bool(right_data["result"])
+                and _normalized(left_data["result"]) != _normalized(right_data["result"])
+            )
+            conflict_reason = (
+                "Apparent result conflict: reported results differ "
+                f"({_display(left_data['result'])} vs {_display(right_data['result'])}); "
+                "differing reported values alone do not prove a contradiction."
+            )
             finding = reason
             if details:
                 finding += " " + "; ".join(details) + "."
+            if result_conflict:
+                finding += " " + conflict_reason
 
             items.append({
                 "paper_ids": paper_ids,
@@ -200,6 +224,8 @@ async def compare_papers(papers: list[dict]) -> dict:
                     f"{pair}: potentially_comparable only; baseline information is "
                     "missing, so a fair performance comparison cannot be established."
                 )
+            if result_conflict:
+                warnings.append(f"{pair}: {conflict_reason}")
 
     insufficient = sum(
         item["comparability"] == "insufficient_information" for item in items

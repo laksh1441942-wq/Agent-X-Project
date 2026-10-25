@@ -129,10 +129,15 @@ async def test_matching_setup_and_baselines_are_potentially_comparable():
     result = await compare_papers([left, right])
     item = result["items"][0]
 
+    conflict_warning = (
+        "paper-1 and paper-2: Apparent result conflict: reported results differ "
+        "(0.91 vs 0.87); differing reported values alone do not prove a contradiction."
+    )
     assert result["status"] == "success"
     assert item["comparability"] == "potentially_comparable"
     assert item["inference"] is True
-    assert result["warnings"] == []
+    assert "differing reported values alone do not prove a contradiction" in item["finding"]
+    assert result["warnings"] == [conflict_warning]
 
 
 @pytest.mark.asyncio
@@ -179,16 +184,102 @@ async def test_paper_ids_and_source_urls_are_preserved_as_evidence():
 @pytest.mark.asyncio
 async def test_conflicting_reported_results_are_returned_deterministically():
     papers = [
-        _paper(paper_id="paper-1", reported_results=["0.91"]),
-        _paper(paper_id="paper-2", reported_results=["0.72"]),
+        _paper(
+            paper_id="paper-1",
+            url="https://example.test/paper-1",
+            reported_results=["0.91"],
+        ),
+        _paper(
+            paper_id="paper-2",
+            source_url="https://example.test/paper-2",
+            reported_results=["0.72"],
+        ),
     ]
 
     first = await compare_papers(papers)
     second = await compare_papers(papers)
     item = first["items"][0]
+    conflict = (
+        "Apparent result conflict: reported results differ (0.91 vs 0.72); "
+        "differing reported values alone do not prove a contradiction."
+    )
 
     assert first == second
     assert first["status"] == "success"
     assert item["comparability"] == "potentially_comparable"
     assert "Reported results: 0.91 vs 0.72" in item["finding"]
-    assert first["warnings"] == []
+    assert conflict in item["finding"]
+    assert item["paper_ids"] == ["paper-1", "paper-2"]
+    assert item["evidence"] == [
+        "paper-1",
+        "paper-2",
+        "https://example.test/paper-1",
+        "https://example.test/paper-2",
+    ]
+    assert first["sources"] == [
+        "https://example.test/paper-1",
+        "https://example.test/paper-2",
+    ]
+    assert first["warnings"] == [f"paper-1 and paper-2: {conflict}"]
+
+
+@pytest.mark.asyncio
+async def test_result_conflict_is_flagged_even_when_datasets_differ():
+    papers = [
+        _paper(
+            paper_id="paper-1",
+            url="https://example.test/paper-1",
+            reported_results=["0.91"],
+        ),
+        _paper(
+            paper_id="paper-2",
+            source_url="https://example.test/paper-2",
+            datasets=["Dataset B"],
+            reported_results=["0.72"],
+        ),
+    ]
+
+    result = await compare_papers(papers)
+    item = result["items"][0]
+    conflict = (
+        "Apparent result conflict: reported results differ (0.91 vs 0.72); "
+        "differing reported values alone do not prove a contradiction."
+    )
+
+    assert item["comparability"] == "not_directly_comparable"
+    assert "Reported datasets differ" in item["reason"]
+    assert conflict in item["finding"]
+    assert item["paper_ids"] == ["paper-1", "paper-2"]
+    assert item["evidence"] == [
+        "paper-1",
+        "paper-2",
+        "https://example.test/paper-1",
+        "https://example.test/paper-2",
+    ]
+    assert result["warnings"] == [
+        f"paper-1 and paper-2: {item['reason']}",
+        f"paper-1 and paper-2: {conflict}",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_multiple_mismatches_are_all_reported_for_a_pair():
+    left = _paper(paper_id="paper-1")
+    right = _paper(
+        paper_id="paper-2",
+        datasets=["Dataset B"],
+        metrics=["F1"],
+        experimental_protocols=["held-out test set"],
+        baselines=["Baseline Y"],
+    )
+
+    result = await compare_papers([left, right])
+    item = result["items"][0]
+
+    assert result["status"] == "success"
+    assert item["comparability"] == "not_directly_comparable"
+    assert "Reported datasets differ" in item["reason"]
+    assert "Reported metrics differ" in item["reason"]
+    assert "Reported experimental protocols differ" in item["reason"]
+    assert "Reported baselines differ" in item["reason"]
+    assert result["warnings"] == [f"paper-1 and paper-2: {item['reason']}"]
