@@ -170,7 +170,30 @@ submission-specific package directory. During merge:
   `asyncio.run`, avoiding an unnecessary plugin dependency; and
 - type annotations were modernized to match the Python 3.11/3.12 target.
 
-## 5. Tests and validation
+## 5. Search & Authenticity Agent
+
+File: [`app/services/search_authenticity.py`](../app/services/search_authenticity.py)
+
+The authenticity implementation lives in the canonical `app/services`
+package. The previous empty `MANAS/app` placeholders were removed so the
+project has one import path and one implementation.
+
+`verify_papers` accepts the discovery agent's paper records and checks each
+title or DOI against OpenAlex using a timeout and structured error handling. A
+matching record produces `verified` metadata status; a metadata mismatch or a
+record with insufficient identifiers produces `partially_verified`; no match
+or a failed lookup remains `unverified`. Original paper fields are preserved,
+and each record receives `authenticity_reasons` for traceability.
+
+This stage verifies bibliographic metadata only. It does not verify scientific
+claims, results, or the truth of a paper. `check_authenticity` is provided as a
+compatibility alias for orchestration code.
+
+Tests are in
+[`tests/test_search_authenticity.py`](../tests/test_search_authenticity.py).
+They cover DOI matching, title lookup, lookup failures, and malformed input.
+
+## 6. Tests and validation
 
 Discovery tests are in
 [`tests/test_paper_discovery.py`](../tests/test_paper_discovery.py). They cover:
@@ -205,7 +228,7 @@ The merged diff also passed:
 git diff --check origin/main...main
 ```
 
-## 6. Feature branch and merge history
+## 7. Feature branch and merge history
 
 ### `feat/critic-agent`
 
@@ -240,7 +263,7 @@ The meaningful implementation commits are:
 7. `8e1763d` - integrate reasoning agent into `app`
 8. `e410516` - normalize merged file whitespace
 
-## 7. Current limitations and next implementation step
+## 8. Current limitations and next implementation step
 
 There is not yet a FastAPI application, shared Pydantic schema module, or
 orchestrator connecting all three services. OpenAlex is the only discovery
