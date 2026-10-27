@@ -37,20 +37,46 @@ verification only; it does not establish that a paper's scientific claims are
 true. Its public entry point is `verify_papers`, with `check_authenticity` kept
 as a compatibility alias for orchestration code.
 
-The module is importable without starting a server. No new runtime dependency
-was added; HTTP requests use Python's standard library.
+The module is importable without starting a server. HTTP requests use Python's
+standard library with the `certifi` CA bundle for reliable TLS verification.
 
 ## Run and test
 
 Use Python 3.11 or 3.12 as specified by the team blueprint:
 
 ```bash
+python3 -m pip install -r requirements.txt
 python3 -m compileall -q app tests
 python3 -m pytest -q
 ```
 
-Actual result: **pass** - 11 tests passed locally. Critic validation also
-passed with a direct smoke test for incomparable datasets.
+Start the integrated API and frontend in separate terminals:
+
+```bash
+python3 run.py
+cd frontend
+npm install
+npm run dev
+```
+
+Open the Vite URL shown in the terminal (normally `http://localhost:5173`).
+The Vite development server proxies `/api` requests to the Python API on
+`http://127.0.0.1:8010`. Set `RESEARCHPILOT_PORT` to use another available
+port, and set `RESEARCHPILOT_API_URL` before starting Vite when the API uses a
+non-default port. The API exposes `GET /api/health` and
+`POST /api/research`.
+
+The test suite includes the API orchestration and health endpoint. Frontend
+assets can be validated with:
+
+```bash
+cd frontend
+npm run build
+npm run lint
+```
+
+Actual result: **pass** - 13 Python tests passed locally. Critic validation
+also passed with a direct smoke test for incomparable datasets.
 
 ## Limitations and next step
 
@@ -58,6 +84,6 @@ Discovery and authenticity currently use OpenAlex and do not establish
 scientific validity or comprehensive literature coverage. Authenticity lookup
 failures preserve the paper as `unverified` and return a structured warning.
 Network failures return a structured error and no fallback fixture has been
-connected yet. Critic and reasoning outputs still need to be wired into the
-shared schemas and orchestrator. The next step is the team lead integration,
-followed by API and end-to-end tests.
+connected yet. The local API now wires discovery, authenticity, critic, and
+reasoning outputs into the frontend report contract; a production deployment
+would still need authentication, persistence, and a production-grade server.

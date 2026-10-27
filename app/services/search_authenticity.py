@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+import ssl
 from collections.abc import Mapping
 from http.client import HTTPException
 from typing import Any
@@ -11,8 +13,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
+import certifi
+
 OPENALEX_API_URL = "https://api.openalex.org/works"
 DEFAULT_TIMEOUT_SECONDS = 10
+TLS_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 
 
 async def verify_papers(papers: list[dict[str, Any]]) -> dict[str, Any]:
@@ -78,7 +83,8 @@ def _lookup_openalex(paper: Mapping[str, Any]) -> Mapping[str, Any] | None:
     if doi:
         query = f"{OPENALEX_API_URL}/https://doi.org/{quote(doi.removeprefix('https://doi.org/'))}"
     elif title:
-        query = f"{OPENALEX_API_URL}?{urlencode({'search': title, 'per-page': 5})}"
+        search_title = re.sub(r"[*?]+", " ", title).strip()
+        query = f"{OPENALEX_API_URL}?{urlencode({'search': search_title, 'per-page': 5})}"
     else:
         return None
 
@@ -86,7 +92,11 @@ def _lookup_openalex(paper: Mapping[str, Any]) -> Mapping[str, Any] | None:
         query,
         headers={"Accept": "application/json", "User-Agent": "ResearchPilot/0.1"},
     )
-    with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+    with urlopen(
+        request,
+        timeout=DEFAULT_TIMEOUT_SECONDS,
+        context=TLS_CONTEXT,
+    ) as response:
         payload = json.load(response)
     if doi:
         return payload if isinstance(payload, Mapping) else None
