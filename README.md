@@ -12,7 +12,8 @@ The implemented service slices are:
 - Paper Discovery Agent in `app/services/paper_discovery.py`;
 - Search & Authenticity Agent in `app/services/search_authenticity.py`;
 - Critic Agent in `app/services/critic.py`; and
-- Reasoning Agent in `app/services/reasoning.py`.
+- Reasoning Agent in `app/services/reasoning.py`; and
+- Ollama Synthesis Agent in `app/services/synthesis.py`.
 
 The Paper Discovery Agent:
 
@@ -40,26 +41,44 @@ as a compatibility alias for orchestration code.
 The module is importable without starting a server. HTTP requests use Python's
 standard library with the `certifi` CA bundle for reliable TLS verification.
 
-## Frontend workspace
+The Ollama Synthesis Agent receives only the normalized papers, comparison
+results, missing-information items, and warnings produced by the other agents.
+It uses a local Ollama chat endpoint to return a structured summary, key
+findings, and candidate gaps. Its system prompt forbids invented sources,
+quotes, metrics, and certainty. Configure the local runtime with the ignored
+`.env` file using the tracked [`.env.example`](.env.example) template:
 
-The dependency-free frontend source lives in [`frontend/index.html`](frontend/index.html),
-[`frontend/styles.css`](frontend/styles.css), and [`frontend/app.js`](frontend/app.js).
-It provides the research input, staged agent pipeline, executive summary,
-evidence ledger, comparison view, missing-information review, candidate gaps,
-paper rows, and source drawer described by the product brief. It posts real
-questions to `POST /api/research` using the shared blueprint contract. When the
-API is unavailable, it shows a clearly labelled deterministic demo fixture so
-the research workflow remains demonstrable without pretending the fixture is
-live evidence.
-
-Run the static frontend locally with:
-
-```bash
-python3 -m http.server 4173 --directory frontend
+```env
+OLLAMA_URL=http://127.0.0.1:11434/api/chat
+OLLAMA_MODEL=qwen2.5:7b
+OLLAMA_TIMEOUT_SECONDS=120
 ```
 
-Then open `http://127.0.0.1:4173/`. The frontend has no separate package
-installation or build step.
+Start Ollama and download the model once with `ollama serve` and
+`ollama pull qwen2.5:7b`. Without Ollama, the API keeps the deterministic agent
+outputs and reports local synthesis as unavailable; it does not fabricate an
+LLM response.
+
+## Frontend workspace
+
+The React frontend source lives in [`frontend/src/App.jsx`](frontend/src/App.jsx),
+[`frontend/src/main.jsx`](frontend/src/main.jsx), and [`frontend/styles.css`](frontend/styles.css).
+It provides the research input, API-backed loading and error states, response-
+driven paper evidence, comparison view, missing-information review, agent
+trace, warnings, and source drawer. It posts real questions to
+`POST /api/research` using the shared blueprint contract. Unsupported backend
+capabilities are shown as unavailable rather than replaced with fixture data.
+
+Run the frontend locally with:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Then open `http://127.0.0.1:4173/`. Vite proxies `/api` requests to the local
+API on port `8010`.
 
 ## Run and test
 
@@ -71,28 +90,31 @@ python3 -m compileall -q app tests
 python3 -m pytest -q
 ```
 
-Start the API and static frontend in separate terminals:
+Start the API and frontend in separate terminals:
 
 ```bash
 python3 run.py
-python3 -m http.server 4173 --directory frontend
+cd frontend
+npm run dev
 ```
 
-The API exposes `GET /api/health` and `POST /api/research`. The static preview
-uses the clearly labelled demo fixture when it cannot reach the API; production
-serving should place both under the same origin or configure a reverse proxy.
+The API exposes `GET /api/health` and `POST /api/research`. The frontend reports
+network, timeout, validation, and invalid-response errors when the API is
+unavailable.
 
-The test suite includes the API orchestration and health endpoint. Actual
-result: **pass** - 15 Python tests passed locally. Critic validation
-also passed with a direct smoke test for incomparable datasets.
+Build the frontend for production with `npm run build` from `frontend/`. The
+test suite includes the API orchestration and health endpoint. Actual result:
+**pass** - 17 Python tests passed locally. Critic validation also passed with a
+direct smoke test for incomparable datasets.
 
 ## Limitations and next step
 
 Discovery and authenticity currently use OpenAlex and do not establish
 scientific validity or comprehensive literature coverage. Authenticity lookup
 failures preserve the paper as `unverified` and return a structured warning.
-Network failures return a structured error. The frontend demo fixture is only
-for interface demonstration and is clearly labelled as non-live data. The
-local API wires discovery, authenticity, critic, and reasoning outputs into
-the frontend report contract; a production deployment would still need
+Network failures return a structured error. Research history and saved
+research are not implemented. Without Ollama, executive summary, key-finding,
+and candidate-gap synthesis are unavailable. The local API wires discovery,
+authenticity, critic, reasoning, and Ollama synthesis outputs into the
+frontend report contract; a production deployment would still need
 authentication, persistence, and a production-grade server.

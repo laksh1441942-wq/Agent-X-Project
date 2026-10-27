@@ -1,5 +1,3 @@
-"""Verify discovered paper metadata against OpenAlex records."""
-
 from __future__ import annotations
 
 import asyncio
@@ -36,27 +34,20 @@ async def verify_papers(papers: list[dict[str, Any]]) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
     warnings: list[str] = []
     sources: list[str] = []
+    valid_papers: list[dict[str, Any]] = []
     for index, paper in enumerate(papers):
         if not isinstance(paper, dict):
             warnings.append(
                 f"Skipped malformed paper record at index {index}; expected a dictionary."
             )
             continue
+        valid_papers.append(paper)
 
-        checked = dict(paper)
-        try:
-            match = await asyncio.to_thread(_lookup_openalex, checked)
-        except (HTTPError, HTTPException, TimeoutError, URLError, OSError, json.JSONDecodeError) as exc:
-            warning = f"Authenticity lookup failed for {_paper_label(checked)}: {_describe_error(exc)}"
-            checked["authenticity_status"] = "unverified"
-            checked["authenticity_reasons"] = [warning]
-            warnings.append(warning)
-        else:
-            status, reasons = _assess_match(checked, match)
-            checked["authenticity_status"] = status
-            checked["authenticity_reasons"] = reasons
-
+    results = await asyncio.gather(*(_verify_one(paper) for paper in valid_papers))
+    for checked, warning in results:
         items.append(checked)
+        if warning:
+            warnings.append(warning)
         if "OpenAlex" not in sources:
             sources.append("OpenAlex")
 
@@ -70,6 +61,23 @@ async def verify_papers(papers: list[dict[str, Any]]) -> dict[str, Any]:
         warnings=warnings,
         sources=sources,
     )
+
+
+async def _verify_one(paper: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
+    checked = dict(paper)
+    warning: str | None = None
+    try:
+        match = await asyncio.to_thread(_lookup_openalex, checked)
+    except (HTTPError, HTTPException, TimeoutError, URLError, OSError, json.JSONDecodeError) as exc:
+        warning = f"Authenticity lookup failed for {_paper_label(checked)}: {_describe_error(exc)}"
+        checked["authenticity_status"] = "unverified"
+        checked["authenticity_reasons"] = [warning]
+    else:
+        status, reasons = _assess_match(checked, match)
+        checked["authenticity_status"] = status
+        checked["authenticity_reasons"] = reasons
+
+    return checked, warning
 
 
 async def check_authenticity(papers: list[dict[str, Any]]) -> dict[str, Any]:

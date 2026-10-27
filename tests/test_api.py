@@ -20,10 +20,24 @@ def test_build_report_composes_service_outputs(monkeypatch):
     async def fake_reason(papers, comparison, research_question):
         return {"items": [{"field": "metrics"}], "warnings": ["reasoning warning"]}
 
+    async def fake_synthesis(question, papers, comparison, missing_information, warnings):
+        return {
+            "agent_name": "Ollama Synthesis Agent",
+            "status": "success",
+            "summary": "Synthesized summary",
+            "items": [{
+                "summary": "Synthesized summary",
+                "key_findings": [{"finding": "A finding"}],
+                "candidate_gaps": [{"title": "A candidate gap"}],
+            }],
+            "warnings": [],
+        }
+
     monkeypatch.setattr("app.api.discover_papers", fake_discover)
     monkeypatch.setattr("app.api.verify_papers", fake_verify)
     monkeypatch.setattr("app.api.compare_papers", fake_compare)
     monkeypatch.setattr("app.api.analyze_missing_information", fake_reason)
+    monkeypatch.setattr("app.api.synthesize_report", fake_synthesis)
 
     from app.api import build_report
 
@@ -33,6 +47,9 @@ def test_build_report_composes_service_outputs(monkeypatch):
     assert report["papers"] == [{"paper_id": "paper-1"}]
     assert report["comparison"] == [{"paper_ids": ["paper-1"]}]
     assert report["missing_information"] == [{"field": "metrics"}]
+    assert report["summary"] == "Synthesized summary"
+    assert report["key_findings"] == [{"finding": "A finding"}]
+    assert report["candidate_gaps"] == [{"title": "A candidate gap"}]
     assert report["warnings"] == ["discovery warning", "reasoning warning"]
     assert len(report["agent_trace"]) == 5
 
