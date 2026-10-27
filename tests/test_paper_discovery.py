@@ -1,5 +1,6 @@
 import asyncio
 import json
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 from urllib.error import URLError
 
@@ -130,6 +131,31 @@ def test_request_failure_returns_structured_warning():
     assert result["status"] == "error"
     assert result["items"] == []
     assert "OpenAlex search failed" in result["warnings"][0]
+
+
+def test_openalex_request_uses_verified_tls_context():
+    payload = {"results": [openalex_paper("TLS verified paper")]}
+
+    with patch(
+        "app.services.paper_discovery.urlopen",
+        return_value=FakeResponse(payload),
+    ) as request:
+        run_discovery("tls verification")
+
+    assert request.call_args.kwargs["context"] is not None
+
+
+def test_openalex_question_wildcards_are_not_sent_to_search():
+    payload = {"results": [openalex_paper("Question punctuation")]}
+
+    with patch(
+        "app.services.paper_discovery.urlopen",
+        return_value=FakeResponse(payload),
+    ) as request:
+        run_discovery("How do models compare?")
+
+    url = request.call_args.args[0].full_url
+    assert parse_qs(urlparse(url).query)["search"] == ["How do models compare"]
 
 
 def test_invalid_input_returns_structured_error():

@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
+import ssl
 from collections.abc import Mapping
 from http.client import HTTPException
 from typing import Any
@@ -12,8 +13,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
+import certifi
+
 OPENALEX_API_URL = "https://api.openalex.org/works"
 DEFAULT_TIMEOUT_SECONDS = 10
+TLS_CONTEXT = ssl.create_default_context(cafile=certifi.where())
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 _STOP_WORDS = {
     "a",
@@ -106,12 +110,18 @@ def _validate_inputs(question: str, max_papers: int) -> str | None:
 
 
 def _request_openalex(question: str, max_papers: int) -> dict[str, Any]:
-    query = urlencode({"search": question, "per-page": max_papers})
+    # OpenAlex treats `?` and `*` as wildcard operators, even when encoded.
+    search_text = re.sub(r"[*?]+", " ", question).strip()
+    query = urlencode({"search": search_text, "per-page": max_papers})
     request = Request(
         f"{OPENALEX_API_URL}?{query}",
         headers={"Accept": "application/json", "User-Agent": "ResearchPilot/0.1"},
     )
-    with urlopen(request, timeout=DEFAULT_TIMEOUT_SECONDS) as response:
+    with urlopen(
+        request,
+        timeout=DEFAULT_TIMEOUT_SECONDS,
+        context=TLS_CONTEXT,
+    ) as response:
         return json.load(response)
 
 

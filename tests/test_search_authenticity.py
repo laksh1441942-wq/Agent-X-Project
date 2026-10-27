@@ -42,7 +42,7 @@ def test_title_search_marks_match_verified_and_preserves_query():
     paper = {"paper_id": "W1", "title": "Reliable Results"}
     payload = {"results": [{"title": "Reliable Results", "id": "W1"}]}
 
-    def openalex(request: Request, timeout: int):
+    def openalex(request: Request, timeout: int, context):
         assert parse_qs(urlparse(request.full_url).query)["search"] == [paper["title"]]
         return FakeResponse(payload)
 
