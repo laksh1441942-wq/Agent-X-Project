@@ -182,21 +182,24 @@ const PIPELINE_STAGES = [
     id: "extract",
     icon: "⬡",
     label: "Reading & extracting",
-    detail: "Downloading PDFs, parsing with pypdf, extracting methods, datasets and metrics via Groq AI…",
+    detail:
+      "Downloading PDFs, parsing with pypdf, extracting methods, datasets and metrics via Groq AI…",
     durationMs: 11000,
   },
   {
     id: "verify",
     icon: "✓",
     label: "Verifying authenticity",
-    detail: "Cross-referencing each paper's bibliographic metadata with OpenAlex…",
+    detail:
+      "Cross-referencing each paper's bibliographic metadata with OpenAlex…",
     durationMs: 5500,
   },
   {
     id: "compare",
     icon: "⇄",
     label: "Comparing evidence",
-    detail: "Analysing experimental setups, datasets, metrics, and baselines across papers…",
+    detail:
+      "Analysing experimental setups, datasets, metrics, and baselines across papers…",
     durationMs: 3200,
   },
   {
@@ -210,7 +213,8 @@ const PIPELINE_STAGES = [
     id: "synthesize",
     icon: "✦",
     label: "Synthesising findings",
-    detail: "Groq AI is generating your executive summary, key findings, and candidate gaps…",
+    detail:
+      "Groq AI is generating your executive summary, key findings, and candidate gaps…",
     durationMs: 99999, // stays active until API responds
   },
 ];
@@ -271,7 +275,11 @@ function LoadingState() {
           const isDone = doneIndices.has(idx);
           const isActive = activeIndex === idx;
           const isVisible = visibleIndices.has(idx);
-          const stateClass = isDone ? "pl-done" : isActive ? "pl-active" : "pl-pending";
+          const stateClass = isDone
+            ? "pl-done"
+            : isActive
+              ? "pl-active"
+              : "pl-pending";
 
           return (
             <div
@@ -281,7 +289,9 @@ function LoadingState() {
             >
               {/* Connector line */}
               {idx < PIPELINE_STAGES.length - 1 && (
-                <span className={`pl-connector ${isDone ? "pl-connector-done" : ""}`} />
+                <span
+                  className={`pl-connector ${isDone ? "pl-connector-done" : ""}`}
+                />
               )}
 
               {/* Icon bubble */}
@@ -300,7 +310,9 @@ function LoadingState() {
                 <div className="pl-content-top">
                   <strong className="pl-label">{stage.label}</strong>
                   {isActive && <span className="pl-badge">Running</span>}
-                  {isDone && <span className="pl-badge pl-badge-done">Done</span>}
+                  {isDone && (
+                    <span className="pl-badge pl-badge-done">Done</span>
+                  )}
                 </div>
                 {(isActive || isDone) && (
                   <p className="pl-detail">{stage.detail}</p>
@@ -318,7 +330,6 @@ function LoadingState() {
     </div>
   );
 }
-
 
 function Warnings({ warnings }) {
   if (!warnings.length) return null;
@@ -502,13 +513,18 @@ function Comparison({ comparisons, papers = [] }) {
   }, {});
   const resolveId = (id) =>
     titleMap[id] ||
-    id.replace("https://openalex.org/", "Work ").replace("https://doi.org/", "");
+    id
+      .replace("https://openalex.org/", "Work ")
+      .replace("https://doi.org/", "");
 
   return (
     <section className="section">
       <div className="section-head">
         <h2>Paper comparison</h2>
-        <span>{comparisons.length} pair{comparisons.length === 1 ? "" : "s"} analysed</span>
+        <span>
+          {comparisons.length} pair{comparisons.length === 1 ? "" : "s"}{" "}
+          analysed
+        </span>
       </div>
       {comparisons.length ? (
         <div className="comparison">
@@ -534,11 +550,20 @@ function Comparison({ comparisons, papers = [] }) {
                 )}
               </p>
               {asList(item.paper_ids).length > 0 && (
-                <p style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}>
+                <p
+                  style={{ fontSize: 11, color: "var(--muted)", marginTop: 8 }}
+                >
                   Papers: {item.paper_ids.map(resolveId).join(" · ")}
                 </p>
               )}
-              {item.inference && <span className="tag" style={{ marginTop: 8, display: "inline-block" }}>Inference</span>}
+              {item.inference && (
+                <span
+                  className="tag"
+                  style={{ marginTop: 8, display: "inline-block" }}
+                >
+                  Inference
+                </span>
+              )}
             </article>
           ))}
         </div>
@@ -610,7 +635,8 @@ function MissingInformation({ items }) {
       <div className="section-head">
         <h2>Missing information</h2>
         <span>
-          {items.length} field{items.length === 1 ? "" : "s"} not in retrieved metadata
+          {items.length} field{items.length === 1 ? "" : "s"} not in retrieved
+          metadata
         </span>
       </div>
       {groups.length ? (
@@ -621,7 +647,11 @@ function MissingInformation({ items }) {
               groupItems[0]?.paper_title ||
               paperId.replace("https://openalex.org/", "");
             return (
-              <article className="notice-panel" key={paperId} style={{ marginBottom: 0 }}>
+              <article
+                className="notice-panel"
+                key={paperId}
+                style={{ marginBottom: 0 }}
+              >
                 <p style={{ fontWeight: 600, fontSize: 13, marginBottom: 10 }}>
                   {displayTitle}
                 </p>
@@ -630,8 +660,15 @@ function MissingInformation({ items }) {
                     <div className="ledger-item" key={`${item.field}-${idx}`}>
                       <span className="ledger-dot" />
                       <div>
-                        <span className="ledger-label">{text(item.field, "Unknown field")}</span>
-                        <p>{text(item.follow_up_action, "No suggestion available.")}</p>
+                        <span className="ledger-label">
+                          {text(item.field, "Unknown field")}
+                        </span>
+                        <p>
+                          {text(
+                            item.follow_up_action,
+                            "No suggestion available.",
+                          )}
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -646,7 +683,8 @@ function MissingInformation({ items }) {
         </EmptyState>
       )}
       <p className="detail" style={{ marginTop: 12 }}>
-        These gaps reflect what the OpenAlex metadata API returned, not the actual paper content.
+        These gaps reflect what the OpenAlex metadata API returned, not the
+        actual paper content.
       </p>
     </section>
   );
