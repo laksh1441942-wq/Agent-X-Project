@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ResearchApiError, submitResearch } from "./api/client.js";
 
 const asList = (value) => (Array.isArray(value) ? value : []);
@@ -161,8 +161,6 @@ function Home({
   );
 }
 
-import { useState, useEffect, useRef } from "react";
-
 const PIPELINE_STAGES = [
   {
     id: "search",
@@ -231,7 +229,8 @@ function LoadingState() {
     let currentIndex = 0;
     const advance = () => {
       const stage = PIPELINE_STAGES[currentIndex];
-      if (!stage || currentIndex >= PIPELINE_STAGES.length - 1) return;
+      if (!stage) return;
+      if (currentIndex >= PIPELINE_STAGES.length - 1) return;
       timerRef.current = setTimeout(() => {
         const next = currentIndex + 1;
         setDoneIndices((prev) => new Set([...prev, currentIndex]));
@@ -239,9 +238,10 @@ function LoadingState() {
         setVisibleIndices((prev) => new Set([...prev, next]));
         currentIndex = next;
         advance();
-      }, stage.durationMs);
+      }, Math.max(Math.floor(stage.durationMs * 0.6), 600));
     };
-    advance();
+    // Start smoothly after brief initial delay
+    timerRef.current = setTimeout(() => advance(), 250);
 
     // Elapsed seconds ticker
     elapsedRef.current = setInterval(() => {
@@ -249,8 +249,8 @@ function LoadingState() {
     }, 1000);
 
     return () => {
-      clearTimeout(timerRef.current);
-      clearInterval(elapsedRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (elapsedRef.current) clearInterval(elapsedRef.current);
     };
   }, []);
 
@@ -259,18 +259,38 @@ function LoadingState() {
     return `${Math.floor(s / 60)}m ${s % 60}s`;
   };
 
+  const progress = Math.round(((activeIndex + 1) / PIPELINE_STAGES.length) * 100);
+  const activeStage = PIPELINE_STAGES[activeIndex];
+
   return (
     <div className="loading-shell">
       <div className="loading-header">
-        <span className="eyebrow loading-eyebrow">Research in progress</span>
-        <h1 className="loading-title">Following the evidence.</h1>
+        <div className="loading-kicker">
+          <span className="loading-orbit" aria-hidden="true" />
+          <span className="eyebrow loading-eyebrow">Research in progress</span>
+          <span className="loading-live">Live pipeline</span>
+        </div>
+        <h1 className="loading-title">Following the evidence<span className="loading-dots" aria-hidden="true">...</span></h1>
         <p className="loading-subtitle">
-          Each agent is running in sequence. This typically takes 30–60 seconds.
+          Scanning, reading, and processing research papers step by step.
         </p>
-        <span className="loading-timer">{fmtElapsed(elapsed)}</span>
+        <div className="loading-meta">
+          <span>{activeStage?.label || "Processing research"}</span>
+          <span className="loading-timer">{fmtElapsed(elapsed)}</span>
+        </div>
+        <div
+          className="loading-progress"
+          role="progressbar"
+          aria-label="Research pipeline progress"
+          aria-valuemin="0"
+          aria-valuemax="100"
+          aria-valuenow={progress}
+        >
+          <span style={{ width: `${progress}%` }} />
+        </div>
       </div>
 
-      <div className="pipeline-track">
+      <div className="pipeline-track" aria-live="polite">
         {PIPELINE_STAGES.map((stage, idx) => {
           const isDone = doneIndices.has(idx);
           const isActive = activeIndex === idx;
@@ -285,12 +305,12 @@ function LoadingState() {
             <div
               key={stage.id}
               className={`pl-row ${stateClass} ${isVisible ? "pl-visible" : ""}`}
-              style={{ transitionDelay: `${idx * 40}ms` }}
+              style={{ transitionDelay: `${idx * 60}ms`, transitionDuration: "400ms" }}
             >
               {/* Connector line */}
               {idx < PIPELINE_STAGES.length - 1 && (
                 <span
-                  className={`pl-connector ${isDone ? "pl-connector-done" : ""}`}
+                  className={`pl-connector ${isDone ? "pl-connector-done" : isActive ? "pl-connector-active" : ""}`}
                 />
               )}
 
@@ -620,6 +640,281 @@ function KeyFindings({ findings }) {
   );
 }
 
+function EvidenceLedger({ findings, gaps, comparisons, missing, papers }) {
+  const paperMap = papers.reduce((map, paper) => {
+    const id = paper.paper_id || paper.id;
+    if (id) map[id] = paper;
+    return map;
+  }, {});
+
+  const paperIdsFor = (item) =>
+    asList(item.paper_ids).filter((id) => paperMap[id]);
+
+  const sourceLinksFor = (paperIds) =>
+    paperIds.flatMap((id) => {
+      const paper = paperMap[id];
+      const links = [];
+      if (paper?.url) links.push({ label: "OpenAlex/source", url: paper.url });
+      if (paper?.doi && paper.doi !== paper.url) {
+        links.push({
+          label: "DOI",
+          url: paper.doi.startsWith("http")
+            ? paper.doi
+            : `https://doi.org/${paper.doi}`,
+        });
+      }
+      return links;
+    });
+
+  const structuredEvidenceFor = (paperIds) =>
+    paperIds.flatMap((id) => {
+      const paper = paperMap[id];
+      const fields = [
+        ["Methods", paper?.methods],
+        ["Datasets", paper?.datasets],
+        ["Metrics", paper?.metrics],
+        ["Reported results", paper?.reported_results],
+        ["Limitations", paper?.limitations],
+      ];
+      return fields.flatMap(([label, values]) =>
+        asList(values).filter(Boolean).map((value) => ({
+          paperId: id,
+          label,
+          value,
+        })),
+      );
+    });
+
+  const pageReferenceFor = (item) =>
+    [
+      item.page_reference,
+      item.page,
+      item.table_reference,
+      item.figure_reference,
+    ].filter(Boolean);
+
+  const referencesFor = (item, paperIds) => {
+    const directReferences = pageReferenceFor(item);
+    if (directReferences.length) return directReferences;
+    return paperIds.flatMap((id) => {
+      const paper = paperMap[id];
+      if (!paper) return [];
+      const bibliographicReference = [
+        asList(paper.authors).join(", "),
+        paper.title,
+        paper.year,
+        paper.doi || paper.url || paper.paper_id || paper.id,
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return bibliographicReference ? [bibliographicReference] : [];
+    });
+  };
+
+  const entries = [
+    ...findings.map((item) => {
+      const paperIds = paperIdsFor(item);
+      return {
+        kind: "Key finding",
+        claim: item.finding || item.title,
+        explanation: item.explanation || item.reason,
+        paperIds,
+        evidence: structuredEvidenceFor(paperIds),
+        references: referencesFor(item, paperIds),
+        sourceLinks: sourceLinksFor(paperIds),
+        provenance: item.inference ? "Inferred" : "Model synthesis from retrieved records",
+        contradictions: asList(item.conflicting_paper_ids),
+        uncertainty: item.uncertainty || item.confidence,
+        missing: [],
+        followUp: item.follow_up_action || item.follow_up_search,
+      };
+    }),
+    ...comparisons.map((item) => {
+      const paperIds = paperIdsFor(item);
+      return {
+        kind: "Comparison conclusion",
+        claim: item.finding || item.reason,
+        explanation: item.reason,
+        paperIds,
+        evidence: structuredEvidenceFor(paperIds),
+        references: referencesFor(item, paperIds),
+        sourceLinks: sourceLinksFor(paperIds),
+        provenance: item.inference ? "Inferred" : "Source-reported comparison",
+        contradictions:
+          item.comparability === "not_directly_comparable" ? paperIds : [],
+        uncertainty:
+          item.comparability === "potentially_comparable"
+            ? "Potential comparability only; direct equivalence is not established."
+            : item.comparability,
+        missing: [],
+        followUp: item.follow_up_action || item.follow_up_search,
+      };
+    }),
+    ...gaps.map((item) => {
+      const paperIds = paperIdsFor(item);
+      return {
+        kind: "Candidate gap",
+        claim: item.title || item.description,
+        explanation: item.description || item.explanation,
+        paperIds,
+        evidence: structuredEvidenceFor(paperIds),
+        references: referencesFor(item, paperIds),
+        sourceLinks: sourceLinksFor(paperIds),
+        provenance: "Candidate inference",
+        contradictions: asList(item.conflicting_paper_ids),
+        uncertainty: item.uncertainty || item.confidence,
+        missing: [],
+        followUp: item.follow_up_action || item.follow_up_search,
+      };
+    }),
+    ...missing.map((item) => {
+      const paperIds = item.paper_id && paperMap[item.paper_id] ? [item.paper_id] : [];
+      return {
+        kind: "Missing-information signal",
+        claim: `${item.field || "A field"} is not available in the retrieved record`,
+        explanation: item.reason,
+        paperIds,
+        evidence: [],
+        references: referencesFor(item, paperIds),
+        sourceLinks: sourceLinksFor(paperIds),
+        provenance: "Source-reported metadata limitation",
+        contradictions: [],
+        uncertainty: "The absence is not evidence that the paper lacks this information.",
+        missing: [item.field].filter(Boolean),
+        followUp: item.follow_up_action || item.follow_up_search,
+      };
+    }),
+  ].filter((entry) => entry.claim);
+
+  return (
+    <section className="section evidence-ledger-section">
+      <div className="section-head">
+        <div>
+          <h2>Evidence ledger</h2>
+          <p className="detail evidence-ledger-intro">
+            Expand any conclusion to inspect its supporting records, extracted evidence,
+            provenance, and uncertainty.
+          </p>
+        </div>
+        <span>{entries.length} traceable item{entries.length === 1 ? "" : "s"}</span>
+      </div>
+      {entries.length ? (
+        <div className="evidence-ledger-list">
+          {entries.map((entry, index) => (
+            <details className="evidence-entry" key={`${entry.kind}-${entry.claim}-${index}`}>
+              <summary>
+                <span className="evidence-entry-index">{String(index + 1).padStart(2, "0")}</span>
+                <span className="evidence-entry-main">
+                  <span className="evidence-entry-kind">{entry.kind}</span>
+                  <strong>{text(entry.claim, "Conclusion unavailable")}</strong>
+                </span>
+                <span className="evidence-expand">Inspect evidence</span>
+              </summary>
+              <div className="evidence-entry-body">
+                {entry.explanation && <p className="evidence-entry-explanation">{entry.explanation}</p>}
+                <div className="evidence-entry-grid">
+                  <div>
+                    <span className="evidence-field-label">Supporting papers</span>
+                    {entry.paperIds.length ? (
+                      <ul className="evidence-papers">
+                        {entry.paperIds.map((id) => (
+                          <li className="evidence-paper" key={id}>
+                            <span>{text(paperMap[id]?.title, id)}</span>
+                            <span
+                              className={`status evidence-paper-status ${paperMap[id]?.authenticity_status || "unverified"}`}
+                              title={text(
+                                asList(paperMap[id]?.authenticity_reasons).join(" "),
+                                "Verification details unavailable.",
+                              )}
+                            >
+                              {paperMap[id]?.authenticity_status === "verified"
+                                ? "✓ Verified"
+                                : statusLabel(paperMap[id]?.authenticity_status)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="evidence-muted">No supporting paper IDs were returned.</p>
+                    )}
+                  </div>
+                  <div>
+                    <span className="evidence-field-label">Provenance</span>
+                    <p>{entry.provenance}</p>
+                    {entry.uncertainty && <p className="evidence-uncertainty">Uncertainty: {entry.uncertainty}</p>}
+                  </div>
+                </div>
+                <div className="evidence-detail-block">
+                  <span className="evidence-field-label">Extracted evidence</span>
+                  {entry.evidence.length ? (
+                    <ul className="evidence-facts">
+                      {entry.evidence.map((fact, factIndex) => (
+                        <li key={`${fact.paperId}-${fact.label}-${factIndex}`}>
+                          <strong>{fact.label}</strong>: {fact.value}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="evidence-muted">No structured extracted evidence was returned for this item.</p>
+                  )}
+                </div>
+                <div className="evidence-entry-grid">
+                  <div>
+                    <span className="evidence-field-label">References</span>
+                    <p>{entry.references.length ? entry.references.join(" · ") : "No page, table, or figure reference was returned."}</p>
+                  </div>
+                  <div>
+                    <span className="evidence-field-label">Missing or conflicting information</span>
+                    {entry.contradictions.length || entry.missing.length ? (
+                      <p>{[...entry.missing, ...entry.contradictions.map((id) => `conflict: ${id}`)].join(" · ")}</p>
+                    ) : (
+                      <p className="evidence-muted">None returned for this item.</p>
+                    )}
+                  </div>
+                </div>
+                {entry.followUp && (
+                  <div className="evidence-follow-up">
+                    <span className="evidence-field-label">Follow-up action</span>
+                    <p>{entry.followUp}</p>
+                  </div>
+                )}
+                <div className="evidence-sources">
+                  <span className="evidence-field-label">Source links and verification</span>
+                  {entry.sourceLinks.length ? (
+                    <div className="evidence-source-links">
+                      {entry.sourceLinks.map((source, sourceIndex) => (
+                        <a key={`${source.url}-${sourceIndex}`} href={source.url} target="_blank" rel="noreferrer">
+                          {source.label} ↗
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="evidence-muted">No source link was returned.</p>
+                  )}
+                  {entry.paperIds.length > 0 && (
+                    <p className="evidence-verification">
+                      Verification: {entry.paperIds.map((id) => `${paperMap[id]?.authenticity_status || "unverified"}`).join(" · ")}
+                    </p>
+                  )}
+                  {entry.paperIds.flatMap((id) => asList(paperMap[id]?.authenticity_reasons)).length > 0 && (
+                    <p className="evidence-verification">
+                      {entry.paperIds.flatMap((id) => asList(paperMap[id]?.authenticity_reasons)).join(" ")}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </details>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="Evidence ledger unavailable">
+          The API did not return conclusions or source records to trace.
+        </EmptyState>
+      )}
+    </section>
+  );
+}
+
 function MissingInformation({ items }) {
   // Group items by paper_id so the display isn't one giant flat list
   const grouped = items.reduce((acc, item) => {
@@ -807,9 +1102,16 @@ function Results({ report, onPaper }) {
         </div>
       </section>
       <KeyFindings findings={asList(report.key_findings)} />
+      <EvidenceLedger
+        findings={asList(report.key_findings)}
+        gaps={gaps}
+        comparisons={comparisons}
+        missing={missing}
+        papers={papers}
+      />
       <section className="section">
         <div className="section-head">
-          <h2>Evidence ledger</h2>
+          <h2>Source records</h2>
           <span>Retrieved source records</span>
         </div>
         {papers.length ? (

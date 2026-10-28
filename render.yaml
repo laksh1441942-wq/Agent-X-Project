@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: researchpilot-api
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python3 -c "from app.api import serve; import os; serve('0.0.0.0', int(os.environ.get('PORT', '10000')))"
+    healthCheckPath: /api/health
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: GROQ_TIMEOUT_SECONDS
+        value: "60"
+      - key: RESEARCHPILOT_CORS_ORIGIN
+        sync: false

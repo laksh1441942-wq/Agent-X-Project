@@ -1,4 +1,5 @@
 const REQUEST_TIMEOUT_MS = 150000;
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 
 export class ResearchApiError extends Error {
   constructor(message, kind = "unknown") {
@@ -13,7 +14,7 @@ export async function submitResearch(question, maxPapers = 3) {
   const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch("/api/research", {
+    const response = await fetch(`${API_BASE_URL}/api/research`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ question, max_papers: maxPapers }),

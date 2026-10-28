@@ -20,6 +20,11 @@ DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8010
 
 
+def _cors_origin() -> str:
+    """Return the configured browser origin for local or hosted deployments."""
+    return os.environ.get("RESEARCHPILOT_CORS_ORIGIN", "http://localhost:5173")
+
+
 async def build_report(question: str, max_papers: int = 5) -> dict[str, Any]:
     """Run the service pipeline and return the frontend report contract."""
     discovery = await discover_papers(question, max_papers)
@@ -152,7 +157,7 @@ class ResearchPilotHandler(BaseHTTPRequestHandler):
             self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(body)))
-            self.send_header("Access-Control-Allow-Origin", "http://localhost:5173")
+            self.send_header("Access-Control-Allow-Origin", _cors_origin())
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
             self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
             self.end_headers()
